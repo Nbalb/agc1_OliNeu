@@ -39,4 +39,6 @@ data/
 
 plots/
 
+results/
+
 *.Rproj
