@@ -42,3 +42,7 @@ plots/
 results/
 
 *.Rproj
+
+.Renviron
+
+agc1_shiny/data_app/
