@@ -1,3 +1,5 @@
+library(fgsea)
+library(msigdbr)
 library(ggrepel)
 library(ggpointdensity)
 library(tidyverse)
@@ -10,11 +12,14 @@ point_plot <- atac_de |>
   inner_join(dge |> 
                filter(padj < 0.05), 
              by = c("gene_symbol" = "symbol"), suffix = c("_atac", "_rna")) |> 
-  mutate(labels = ifelse(abs(log2FoldChange_atac) > 2 | abs(log2FoldChange_rna) > 2, 
+  mutate(labels = ifelse(log2FoldChange_atac > 2.4 | 
+                           log2FoldChange_atac < -2.7 |
+                           abs(log2FoldChange_rna) > 3, 
                          gene_symbol, ""))
 point_plot |> 
   ggplot(aes(log2FoldChange_rna, log2FoldChange_atac, label = labels)) +
   geom_pointdensity() +
+  geom_label_repel() +
   labs(title = "Significant genes comparison",
        x = "RNASeq log2FoldChange",
        y = "ATACSeq log2FoldChange",
@@ -69,3 +74,19 @@ dens_plot |>
        subtitle = paste0("MWU test p-value: ", mw_res_neg$p.value |> round(4))) +
   scale_color_discrete(name = "Experiment", aesthetics = c("color", "fill"))
 ggsave("plots/007/002_logFC_density_comparison_negative.png", h = 1200, w = 2000, units = "px")
+
+# Enrichment in ATAC for TFTs 
+tft_db <- msigdbr(species = "Mus musculus", category = "C3") |> 
+  filter(gs_subcat %in% c("TFT:GTRD", "TFT:TFT_Legacy"))
+
+mlist <- split(x = tft_db$gene_symbol, f = tft_db$gs_name)
+df <- atac_de |> 
+  as.data.frame() |> 
+  filter(!is.na(padj) & !is.na(log2FoldChange) & !is.na(gene_symbol)) |> 
+  mutate(padj = replace(padj, padj == 0, 2.225074e-308)) 
+sig <- setNames(df$log2FoldChange, df$gene_symbol)
+fgseaRes <- fgseaMultilevel(pathways = mlist,
+                            stats = sig,
+                            eps = 0
+) # Only significant results is FOXN3_TARGET_GENES
+

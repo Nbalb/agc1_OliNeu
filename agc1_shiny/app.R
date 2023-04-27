@@ -1,3 +1,4 @@
+library(ggpointdensity)
 library(tidyr)
 library(dqshiny)
 library(plotly)
@@ -6,6 +7,7 @@ library(dplyr)
 library(ggplot2)
 library(shiny)
 
+# Load data
 res <- readRDS("data/002_res.rds") |> 
   select(symbol, ensembl_id, log2FC, padj) |> 
   relocate(symbol)
@@ -21,8 +23,14 @@ tpms <- readRDS("data/002_tpms_tbl.rds") |>
          across(where(is.numeric), ~round(.x, 3))) |> 
   rename(ensembl_id = gene_id) |>
   relocate(symbol, ensembl_id, log2FC, padj)
-  
 
+atac_res <- read.csv("data/ATAC_de.csv") |> 
+  as_tibble() |> 
+  select(gene_symbol, log2FoldChange, padj, geneChr, ensembl_gene) |> 
+  rename(log2FC_peaks = log2FoldChange) |> 
+  relocate(gene_symbol, ensembl_gene)
+  
+# Define UI
 ui <- fluidPage(
   titlePanel(title = div(img(src = "Picture5.png", height = "100%", width = "100%"), 
                          style = "margin-left:-20px;margin-right:-20px;margin-top:-20px;"),
@@ -56,7 +64,15 @@ ui <- fluidPage(
                   column(6, offset = 1, div(plotlyOutput("boxplot"),
                                             style = "margin-right:30px"
                                             ))
-                  )
+                  ),
+         tabPanel("ATAC vs RNA", 
+                  column(5, div(DTOutput("atac_table"), 
+                                # style = "font-size:90%"
+                  )),
+                  column(6, offset = 1, div(plotlyOutput("atac_point"),
+                                            style = "margin-right:30px"
+                  ))
+         )
          )
        )
      )
@@ -65,14 +81,12 @@ ui <- fluidPage(
  )
 
 server <- function(input, output, session) {
-    
   pathway_ids <- reactive({
     msdb[msdb$gs_name %in% input$pathway,]$ensembl_gene
   })
   gene_vec_split <- reactive({
     strsplit(gsub(" ", "", input$gene_vec), ",")[[1]]
     })
-  
   
     # Create reactive expression that filters dataframe based on character vector input
     filtered_res <- reactive({
@@ -86,8 +100,7 @@ server <- function(input, output, session) {
       
       # Select genes from text input
       if (input$gene_vec != "") {
-        gene_vec_split <- 
-        temp_res[temp_res$symbol %in% gene_vec_split(),]
+        gene_vec_split <- temp_res[temp_res$symbol %in% gene_vec_split(),]
       } else {
         return(temp_res)
       }
@@ -156,7 +169,8 @@ server <- function(input, output, session) {
       ggplotly(tooltip = c("text"),
                height = 500) |>  
         config(toImageButtonOptions = list(format = "png", 
-                                           scale = 6)) |> 
+                                           scale = 6),
+               displaylogo = F) |> 
         layout(legend = list(orientation = "h", 
                              y = 1, x = 0.5, 
                              yanchor = "bottom", xanchor = "center"),
@@ -259,14 +273,95 @@ server <- function(input, output, session) {
               axis.ticks.x = element_blank()) 
       ggplotly(height = 500) |> 
         config(toImageButtonOptions = list(format = "png", 
-                                           scale = 6)) |> 
+                                           scale = 6),
+               displaylogo = F) |> 
         layout(font = list(family = "Arial"),
                legend = list(x = 100,
-                             y = 0.5)
-        )
+                             y = 0.5))
       
     })
 
+    # DT ATAC data
+    filtered_atac <- reactive({
+      
+      # Select genes based on the pathways they belong to
+      if (input$pathway != "") {
+        temp_atac_res <- atac_res[atac_res$ensembl_id %in% pathway_ids(),]
+      } else {
+        temp_atac_res <- atac_res
+      }
+      
+      # Select genes from text input
+      if (input$gene_vec != "") {
+        gene_vec_split <- temp_atac_res[temp_atac_res$symbol %in% gene_vec_split(),]
+      } else {
+        return(temp_atac_res)
+      }
+    })
+    
+    output$atac_table <- renderDT(filtered_atac() |> 
+                             mutate(across(where(is.numeric), ~round(.x, 3))), 
+                           rownames = FALSE,
+                           escape = FALSE,
+                           options = list(
+                             autoWidth = T,
+                             order = list(list(3, "asc"), list(2, "desc")),
+                             columnDefs = list(list(
+                               targets = 1,
+                               render = JS(
+                                 "function(data, type, row, meta) {",
+                                 "return type === 'display' && data.length > 6 ?",
+                                 "'<span title=\"' + data + '\">' + data.substr(0, 6) + '...</span>' : data;",
+                                 "}")
+                             ))), 
+                           callback = JS('table.page(3).draw(false);')
+    )
+    
+    # Select genes from table click selection
+    plot_atac <- reactive({
+      selected_rows <- input$atac_table_rows_selected
+      if (!is.null(selected_rows)) {
+        filtered_atac()[selected_rows, , drop = FALSE]
+      } else {
+        return(filtered_atac())
+      }  
+    })
+    
+    # ATAC plots ----
+    output$atac_point <- renderPlotly({
+      
+      plot_atac() |> 
+        inner_join(res |> filter(padj < 0.05),
+                   by = c("gene_symbol" = "symbol"), suffix = c("_ATAC", "_RNA")) |> 
+        mutate(across(where(is.numeric), ~round(.x, 3))) |> 
+        rename(log2FC_RNA = log2FC, log2FC_ATAC = log2FC_peaks, symbol = gene_symbol) |> 
+        ggplot(aes(log2FC_RNA, log2FC_ATAC, 
+                   text = paste0(symbol, "<br>",
+                                 "Log<sub>2</sub>FC RNA: ", log2FC_RNA, "<br>",
+                                 "<i>P</i> adjusted RNA: ", padj_RNA, "<br>",
+                                 "Log<sub>2</sub>FC ATAC: ", log2FC_ATAC, "<br>",
+                                 "<i>P</i> adjusted ATAC: ", padj_ATAC, "<br>"))) +
+        geom_point(alpha = .7, color = "black") + 
+        labs(title = "ATAC differential accessibility vs RNA differential gene expression\n
+             Significant results only",
+             x = "RNA-Seq log2FoldChange",
+             y = "ATAC-Seq log2FoldChange") + 
+        theme_bw()  
+      ggplotly(tooltip = "text", 
+               height = 500) |> 
+        config(toImageButtonOptions = list(format = "png", 
+                                           scale = 6),
+               displaylogo = F) |> 
+        layout(font = list(family = "Arial"),
+               legend = list(x = 100,
+                             y = 0.5),
+               title = list(text = paste0('ATAC differential accessibility vs RNA differential gene expression',
+                                    '<br>',
+                                    '<sup>',
+                                    'Significant results only',
+                                    '</sup>'))) |> 
+        toWebGL()
+    })
     
 }
 shinyApp(ui, server)
