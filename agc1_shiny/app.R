@@ -1,4 +1,3 @@
-library(ggpointdensity)
 library(tidyr)
 library(dqshiny)
 library(plotly)
@@ -26,15 +25,15 @@ tpms <- readRDS("data/002_tpms_tbl.rds") |>
 
 atac_res <- read.csv("data/ATAC_de.csv") |> 
   as_tibble() |> 
-  select(gene_symbol, log2FoldChange, padj, geneChr, ensembl_gene) |> 
+  select(gene_symbol, log2FoldChange, padj, ensembl_gene) |> 
   rename(log2FC_peaks = log2FoldChange) |> 
   relocate(gene_symbol, ensembl_gene)
   
 # Define UI
 ui <- fluidPage(
-  titlePanel(title = div(img(src = "Picture5.png", height = "100%", width = "100%"), 
+  titlePanel(title = div(img(src = "Picture1.png", height = "100%", width = "100%"), 
                          style = "margin-left:-20px;margin-right:-20px;margin-top:-20px;"),
-             windowTitle = "Agc1 DGE Explorer"),
+             windowTitle = "Agc1 Transcriptome Explorer"),
  fluidRow(
    sidebarLayout(
      sidebarPanel(
@@ -77,7 +76,19 @@ ui <- fluidPage(
        )
      )
    )
-   )
+   ),
+ tags$footer("Created by Nicola Balboni for ", 
+             tags$a("Telethon", href = "https://www.telethon.it/en"), 
+             align = "center", 
+             style = "
+              position:absolute;
+              bottom:0;
+              width:100%;
+              height:40px;
+              color: black;
+              padding: 10px;
+              # background-color: white;
+              z-index: 1000;")
  )
 
 server <- function(input, output, session) {
@@ -244,8 +255,6 @@ server <- function(input, output, session) {
         temp_long_tpms <- tpms[tpms$symbol == "Slc25a12", ]
       }
       
-      
-      
       temp_long_tpms <- temp_long_tpms |> 
         arrange(desc(log2FC))
       temp_long_tpms |> 
@@ -293,14 +302,23 @@ server <- function(input, output, session) {
       
       # Select genes from text input
       if (input$gene_vec != "") {
-        gene_vec_split <- temp_atac_res[temp_atac_res$symbol %in% gene_vec_split(),]
+        temp_atac_res <- temp_atac_res[temp_atac_res$symbol %in% gene_vec_split(),]
       } else {
-        return(temp_atac_res)
+        temp_atac_res <- atac_res
       }
+      
+      temp_atac_res |> 
+        inner_join(res |> filter(padj < 0.05),
+                   by = c("gene_symbol" = "symbol"), 
+                   suffix = c("_ATAC", "_RNA")) |>
+        mutate(across(where(is.numeric), ~round(.x, 3))) |> 
+        rename(log2FC_RNA = log2FC, 
+               log2FC_ATAC = log2FC_peaks, 
+               symbol = gene_symbol) |> 
+        select(symbol, ensembl_id, log2FC_ATAC, padj_ATAC, log2FC_RNA, padj_RNA)
     })
     
-    output$atac_table <- renderDT(filtered_atac() |> 
-                             mutate(across(where(is.numeric), ~round(.x, 3))), 
+    output$atac_table <- renderDT(filtered_atac(), 
                            rownames = FALSE,
                            escape = FALSE,
                            options = list(
@@ -331,10 +349,6 @@ server <- function(input, output, session) {
     output$atac_point <- renderPlotly({
       
       plot_atac() |> 
-        inner_join(res |> filter(padj < 0.05),
-                   by = c("gene_symbol" = "symbol"), suffix = c("_ATAC", "_RNA")) |> 
-        mutate(across(where(is.numeric), ~round(.x, 3))) |> 
-        rename(log2FC_RNA = log2FC, log2FC_ATAC = log2FC_peaks, symbol = gene_symbol) |> 
         ggplot(aes(log2FC_RNA, log2FC_ATAC, 
                    text = paste0(symbol, "<br>",
                                  "Log<sub>2</sub>FC RNA: ", log2FC_RNA, "<br>",

@@ -257,6 +257,22 @@
       ],
       "Hash": "dea6970ff715ca541c387de363ff405e"
     },
+    "dqshiny": {
+      "Package": "dqshiny",
+      "Version": "0.0.5",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteRepo": "dqshiny",
+      "RemoteUsername": "daqana",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "b2c60d61e4554430c0b63d311efef7e97bd45873",
+      "Requirements": [
+        "htmltools",
+        "shiny"
+      ],
+      "Hash": "13dee56efc2a0d88eceec40dbcf4a0bc"
+    },
     "ellipsis": {
       "Package": "ellipsis",
       "Version": "0.3.2",

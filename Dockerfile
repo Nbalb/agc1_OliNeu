@@ -1,5 +1,5 @@
 # Base image https://hub.docker.com/u/rocker/
-FROM rocker/shiny:4.2.3
+FROM rocker/shiny:4.3.0
 
 # system libraries of general use
 ## install debian packages
@@ -27,8 +27,8 @@ RUN Rscript -e 'install.packages("renv")'
 RUN Rscript -e 'renv::restore()'
 
 ## app folder
-RUN mkdir /srv/shiny-server/Agc1_olineu
-COPY ./agc1_shiny /srv/shiny-server/Agc1_olineu
+RUN mkdir /srv/shiny-server/Agc1_Olineu
+COPY ./agc1_shiny /srv/shiny-server/Agc1_Olineu
 
 # Change port to listen to
 RUN chmod -R 755 /srv/shiny-server/
