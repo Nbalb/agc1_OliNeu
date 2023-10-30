@@ -22,6 +22,7 @@ apt-get clean
 # copy necessary files
 ## renv.lock file
 COPY ./agc1_shiny/renv.lock ./renv.lock
+
 # install renv & restore packages
 RUN Rscript -e 'install.packages("renv")'
 RUN Rscript -e 'renv::restore()'
@@ -31,9 +32,10 @@ RUN mkdir /srv/shiny-server/Agc1_Olineu
 COPY ./agc1_shiny /srv/shiny-server/Agc1_Olineu
 
 # Change port to listen to
-RUN chmod -R 755 /srv/shiny-server/
-RUN chmod -R 755 /etc/shiny-server/
+RUN chmod -R 777 /srv/shiny-server/
+RUN chmod -R 777 /etc/shiny-server/
 RUN sed -i -e 's/\blisten 3838\b/listen 8080/g' /etc/shiny-server/shiny-server.conf
+RUN cd /srv/shiny-server/ && ls | grep -P "[0-9]{2}_*" | xargs rm -rf
 
 # expose port
 USER shiny

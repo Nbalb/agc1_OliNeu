@@ -74,9 +74,11 @@ sampleDistMatrix <- as.matrix(sampleDists)
 colnames(sampleDistMatrix) <- NULL
 colors <- colorRampPalette(rev(brewer.pal(9, "Blues")))(255)
 
-png("plots/002_1_Euclidean_distance.png", h = 3000, w = 4200, res = 600)
+png("plots/002_1_Euclidean_distance.png", h = 2000, w = 3000, res = 600)
 Heatmap(sampleDistMatrix,
-        col = colors,
+        col = colors, 
+        row_labels = str_replace(rownames(sampleDistMatrix), "kd", "siAgc1 ") |> 
+          str_replace("wt", "control "),
         column_title = "Overall similarity between samples",
         name = "Euclidean \ndistance\n",
         rect_gp = gpar(col = "grey60", lwd = 1)
@@ -85,13 +87,17 @@ dev.off()
 
 sample_colors <- c(viridis_pal(option = "C", end = 0.8)(8)[1:3],
                    viridis_pal(option = "C", end = 0.8)(8)[6:8])
+sample_labels <- c(paste0("siAgc1 rep", 1:3), paste0("control rep", 1:3))
 
-png("plots/002_2_PCA_plot.png", h = 2500, w = 4500, res = 600)
 plotPCA(rld, intgroup = c("names", "gt"), ntop = nrow(rld)) +
   labs(title = "Principal Component Analysis") +
+  geom_point(size = 5) +
   theme(plot.title = element_text(hjust = 0.5)) +
-  scale_color_manual(values = sample_colors)
-dev.off()
+  scale_color_manual(values = sample_colors, 
+                     labels = sample_labels,
+                     name = "Sample") +
+  theme_light()
+ggsave("plots/002_2_PCA_plot.png", h = 1000, w = 1500, units = "px")
 
 # Differential expression analysis
 fname <- "data/002_des.rds"
@@ -110,15 +116,18 @@ if(!file.exists(fname)){
   }else{warning("genes in dds object and res object are not in the same order")}
   
   saveRDS(res, fname)
-  saveRDS(res |> 
-            as.data.frame() |> 
-            rownames_to_column("ensembl") |> 
-            as_tibble(),
+  res_tbl <- res |> 
+    as.data.frame() |> 
+    rownames_to_column("ensembl") |> 
+    as_tibble()
+  saveRDS(res_tbl,
           "data/002_res_tbl.rds")
+  write_delim(res_tbl, "data/002_res_tbl.tsv", "\t")
+  
 }else{res <- readRDS(fname)}
 
 # MA plot no shrinkage
-png(paste0("plots/002_4_agc1_v2_MAplot_no_shrink.png"), w = 2000, h = 1200, res = 300)
+png(paste0("plots/002_4_agc1_v2_MAplot_no_shrink.png"), w = 1600, h = 1200, res = 300)
 plotMA(results(des), main = paste("MA plot siAgc1 OliNeu cells - no shrinkage"),
        alpha = 0.05,
        colSig = "#1E20FF80",
@@ -127,7 +136,7 @@ plotMA(results(des), main = paste("MA plot siAgc1 OliNeu cells - no shrinkage"),
 dev.off()
 
 # MA plot shrinkage
-png(paste0("plots/002_4_agc1_v2_MAplot.png"), w = 2000, h = 1200, res = 300)
+png(paste0("plots/002_4_agc1_v2_MAplot.png"), w = 1600, h = 1200, res = 300)
 plotMA(res, main = paste("MA plot siAgc1 OliNeu cells - apeglm shrinkage"),
        alpha = 0.05,
        colSig = "#1E20FF80",
@@ -247,9 +256,10 @@ dev.off()
 
 
 # Volcano plots
-x <- res |> as.data.frame() |> rownames_to_column()
+x <- res |> 
+  as.data.frame() |> 
+  rownames_to_column()
 
-png(paste0("plots/002_8_Volcano_plot_agc1.png"), h = 3500, w = 4500, res = 600)
 EnhancedVolcano(x, subtitle = "padj cutoff = 0.05 \nlog2FC cutoff = 1",
                 lab = x$symbol,
                 x = 'log2FoldChange',
@@ -265,6 +275,9 @@ EnhancedVolcano(x, subtitle = "padj cutoff = 0.05 \nlog2FC cutoff = 1",
                 labSize = 3.5,
                 legendLabSize = 10,
                 drawConnectors = T,
+                min.segment.length = 0,
+                widthConnectors = 0.8,
+                arrowheads = F,
                 caption = paste0("Significantly downregulated genes = ", 
                                  x |> 
                                    filter(log2FoldChange < -1 & padj < 0.05) |>
@@ -274,7 +287,7 @@ EnhancedVolcano(x, subtitle = "padj cutoff = 0.05 \nlog2FC cutoff = 1",
                                  x |> 
                                    filter(log2FoldChange > 1 & padj < 0.05) |> 
                                    nrow()),
-                selectLab = c("Srebf1", "Srebf2", "Slc25a13",
+                selectLab = c("Srebf1", "Srebf2", "Slc25a12", "Slc25a13",
                               x |> 
                                 filter(abs(log2FoldChange) > 5 | padj < 1e-150) |> 
                                 pull(symbol))
@@ -282,8 +295,7 @@ EnhancedVolcano(x, subtitle = "padj cutoff = 0.05 \nlog2FC cutoff = 1",
   theme(plot.title = element_text(hjust = 0.5), 
         plot.subtitle = element_text(hjust = 0.5),
         plot.caption = element_text(hjust = 0.5))
-
-dev.off()
+ggsave("plots/002_8_Volcano_plot_agc1.png", h = 3500, w = 4500, units = "px", dpi = 600)
 
 # Plot genes of interest
 targets <-  c("Slc25a12", "Slc25a13", "Nat8l", "Aspa", "Acss1", "Srebf1",
@@ -292,15 +304,17 @@ targets <-  c("Slc25a12", "Slc25a13", "Nat8l", "Aspa", "Acss1", "Srebf1",
               "Hdac7", "Hdac3", "Hdac4", "Hdac1", "Hdac6", "Hdac11", "Hdac10", 
               "Hdac8", "Rai1")
 
-goi_full <- assays(des)[["abundance"]] |> 
-  as.data.frame() |> 
-  rownames_to_column("gene_id") |> 
-  mutate(symbol = as.factor(rowRanges(des)$symbol),
-         padj = res$padj,
-         log2FC = res$log2FoldChange) |> 
-  pivot_longer(starts_with("wt") | starts_with("kd"), names_to = "sample", values_to = "tpms")
-saveRDS(goi_full, "data/002_tpms_tbl.rds")
-
+fname <- "data/002_tpms_tbl.rds"
+if(!file.exists(fname)){
+  goi_full <- assays(des)[["abundance"]] |> 
+    as.data.frame() |> 
+    rownames_to_column("gene_id") |> 
+    mutate(symbol = as.factor(rowRanges(des)$symbol),
+           padj = res$padj,
+           log2FC = res$log2FoldChange) |> 
+    pivot_longer(starts_with("wt") | starts_with("kd"), names_to = "sample", values_to = "tpms")
+  saveRDS(goi_full, fname)
+}else{goi_full <- readRDS(fname)}
 goi <- goi_full |> 
   filter(symbol %in% targets) |> 
   mutate(gt = str_remove_all(sample, "[0-9]"))
@@ -308,24 +322,43 @@ goi <- goi_full |>
 dir.create("plots/002_9_Genes_of_interest", showWarnings = F)
 
 for(i in targets){
-  goplot <- goi |> filter(symbol == i)
+  goplot <- goi |> 
+    filter(symbol == i) |> 
+    mutate(gt = factor(gt, levels = c("wt", "kd"), labels = c("control", "siAgc1")))
   
   png(paste0("plots/002_9_Genes_of_interest/", i, ".png"), h = 2000, w = 2500, res = 600)
-  p <- ggplot(goplot, aes(x = gt, y = tpms, color = sample)) +
-    geom_beeswarm(size = 4, cex = 3) +
+  p <- ggplot(goplot, aes(x = gt, 
+                          y = tpms, 
+                          color = sample)) +
+    geom_beeswarm(size = 5, cex = 3) +
     labs(title = paste0(i, " expression \nin siAgc1 OliNeu cells"),
-         subtitle = paste0("log2FC = ", goplot |> pull(log2FC) |> head(1) |> scales::scientific(), 
-                           "    padj = ", goplot |> pull(padj) |> head(1) |> scales::scientific()),
-         x = "Genotype",
+         subtitle = paste0(
+           "log2FC = ",
+           goplot |> pull(log2FC) |> head(1) |> scales::scientific(),
+           "    padj = ",
+           goplot |> pull(padj) |> head(1) |> scales::scientific()
+         ),
+         x = "Genotype", 
          y = "TPMs") +
     scale_x_discrete(labels = function(x) str_replace(x, "_", "\n")) +
+    scale_color_manual(values = sample_colors,
+                       labels = sample_labels,
+                       name = "Sample") +
     theme(plot.title = element_text(hjust = 0.5),
           plot.subtitle = element_text(hjust = 0.5),
-          panel.background = element_rect(fill = ifelse(goplot |> slice_head() |> pull(padj) < 0.05,
-                                                        ifelse(goplot |> slice_head() |> pull(log2FC) < 0, "#8EDEF640", "#F8252915"),
-                                                        "grey90")))
-                                                        print(p)
-                                                        dev.off()
+          panel.background = element_rect(fill = 
+                                            ifelse(
+                                              goplot |> 
+                                                slice_head() |> 
+                                                pull(padj) < 0.05,
+                                              ifelse(goplot |> 
+                                                       slice_head() |> 
+                                                       pull(log2FC) < 0, 
+                                                     "#8EDEF640", 
+                                                     "#F8252915"),
+                                              "grey90")))
+  print(p)
+  dev.off()
 }
 
 # Find mean TPMS for agc1 and agc2
@@ -350,9 +383,10 @@ Heatmap(mtx, name = "TPMs", color_space = "rgb", column_names_rot = 0,
 # Plot heatmap of best scoring genes
 best_de <- res |> 
   as.data.frame() |> 
+  na.omit() |> 
   mutate(sign = ifelse(log2FoldChange < 0, "neg", "pos")) |> 
   group_by(sign) |> 
-  slice_max(abs(log2FoldChange), n = 25) |> 
+  slice_max(abs(log2FoldChange), n = 25,) |> 
   ungroup() |> 
   pull(symbol)
 
@@ -376,10 +410,13 @@ ha <- rowAnnotation(log2FC = anno_numeric(logfc_bar$log2FoldChange |>
                                             round(2)), 
                     annotation_name_rot = 0)
 
-png("plots/002_Heatmap_best_de.png", h = 2000, w = 2800, res = 350)
+png("plots/002_Heatmap_best_de.png", h = 2500, w = 3500, res = 350)
 hm <- Heatmap(mtx, 
               cluster_columns = F, 
               cluster_rows = F,
+              column_labels = str_replace(colnames(mtx), "wt", "control ") |> 
+                str_replace("kd", "siAgc1 "),
+              column_names_centered = T,
               column_names_rot = 0,
               column_title = "Top 30 differentially expressed genes",
               col = viridis_pal()(11),
@@ -444,6 +481,9 @@ png("plots/002_Heatmap_best_brain_cell_markers.png", h = 2200, w = 3000, res = 3
 hm <- Heatmap(mtx, 
               cluster_columns = F, 
               cluster_rows = F,
+              column_labels = str_replace(colnames(mtx), "wt", "control ") |> 
+                str_replace("kd", "siAgc1 "),
+              column_names_centered = T,
               column_names_rot = 0,
               column_title = "Brain cells markers expression",
               col = viridis_pal()(11),

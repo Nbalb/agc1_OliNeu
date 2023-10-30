@@ -4,29 +4,35 @@ library(ggrepel)
 library(ggpointdensity)
 library(tidyverse)
 
-atac_de <- read_csv("../agc1v2/data/ATACSeq/005.1c_ATAC_de.csv")
+atac_de <- read_csv("data/005.1c_ATAC_de.csv")
 dge <- readRDS("data/002_res_tbl.rds")
 
 point_plot <- atac_de |> 
-  filter(padj < 0.05) |> 
-  inner_join(dge |> 
-               filter(padj < 0.05), 
+  inner_join(dge, 
              by = c("gene_symbol" = "symbol"), suffix = c("_atac", "_rna")) |> 
-  mutate(labels = ifelse(log2FoldChange_atac > 2.4 | 
-                           log2FoldChange_atac < -2.7 |
-                           abs(log2FoldChange_rna) > 3, 
+  mutate(labels = ifelse((log2FoldChange_rna > 2 & log2FoldChange_atac > 0) |
+                           (log2FoldChange_rna > 1 & log2FoldChange_atac < 0) |
+                           (log2FoldChange_rna < -1 & log2FoldChange_atac > 0) |
+                           (log2FoldChange_rna < -3 & log2FoldChange_atac < -3),
                          gene_symbol, ""))
 point_plot |> 
   ggplot(aes(log2FoldChange_rna, log2FoldChange_atac, label = labels)) +
   geom_pointdensity() +
-  geom_label_repel() +
+  geom_text_repel(segment.curvature = -0.1,
+                   segment.ncp = 3,
+                   segment.angle = 20,
+                   # nudge_x = 0.5, 
+                   max.overlaps = Inf,
+                   min.segment.length = 0) +
   labs(title = "Significant genes comparison",
        x = "RNASeq log2FoldChange",
        y = "ATACSeq log2FoldChange",
        subtitle = paste0(nrow(point_plot), " genes compared")) + 
   scale_color_viridis_c(option = "C") +
+  scale_x_continuous(expand = expansion(mult = 0.3)) +
+  scale_y_continuous(expand = expansion(mult = 0.1)) +
   theme_bw()
-ggsave("plots/007/001_logFC_ATAC_vs_RNA.png", h = 1200, w = 2000, units = "px")
+ggsave("plots/007/001_logFC_ATAC_vs_RNA_full.png", h = 1500, w = 2500, units = "px")
 
 # Density plot 
 dens_plot <- point_plot |> 

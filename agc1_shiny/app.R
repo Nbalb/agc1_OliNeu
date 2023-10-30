@@ -50,23 +50,24 @@ ui <- fluidPage(
        tabsetPanel(
          type = "tabs",
          tabPanel("Volcano", 
-                  column(4, div(DTOutput("dge"), 
-                                # style = "font-size:90%"
+                  column(5, div(DTOutput("dge"), 
+                                style = "font-size:90%"
                                 )),
-                  column(7, offset = 1, div(plotlyOutput("vol"), 
+                  column(7, div(plotlyOutput("vol"), 
                                             style = "margin-right:30px"))
                   ),
          tabPanel("Boxplot", 
                   column(5, div(DTOutput("table_tpms"), 
-                                # style = "font-size:90%"
+                                style = "font-size:90%"
                                 )),
                   column(6, offset = 1, div(plotlyOutput("boxplot"),
-                                            style = "margin-right:30px"
+                                            style = "margin-right:10px;
+                                                     margin-left:35px"
                                             ))
                   ),
          tabPanel("ATAC vs RNA", 
                   column(5, div(DTOutput("atac_table"), 
-                                # style = "font-size:90%"
+                                style = "font-size:90%"
                   )),
                   column(6, offset = 1, div(plotlyOutput("atac_point"),
                                             style = "margin-right:30px"
@@ -81,12 +82,13 @@ ui <- fluidPage(
              tags$a("Telethon", href = "https://www.telethon.it/en"), 
              align = "center", 
              style = "
+              font-size: 11px;
               position:absolute;
               bottom:0;
               width:100%;
-              height:40px;
+              height:20px;
               color: black;
-              padding: 10px;
+              padding: 4px;
               # background-color: white;
               z-index: 1000;")
  )

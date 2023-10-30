@@ -4,6 +4,7 @@ library(ComplexHeatmap)
 library(scales)
 library(DESeq2)
 library(msigdbr)
+library(babelgene)
 library(tidyverse)
 source("funcs/plotEnrichment2.R")
 source("funcs/pretty_path_label.R")
@@ -14,9 +15,9 @@ fname <- "data/003_mdf_mm.rds"
 if(!file.exists(fname)){
   library(msigdbr) 
   msigdbr_collections() |> print(n = Inf)
-  mdf <- msigdbr(species = "Mus musculus") |>     # Retrieve all Dm gene sets
+  mdf <- msigdbr(species = "Mus musculus") |> 
     filter(gs_cat %in% c("C2", "C5", "H"), 
-           gs_subcat %in% c("", "GO:MF", "GO:BP", "GO:CC", "CP:KEGG", "CP:WIKIPATHWAYS", "CP:REACTOME"))
+           gs_subcat %in% c("", "GO:MF", "GO:BP", "GO:CC", "CP:KEGG", "CP:WIKIPATHWAYS"))
   saveRDS(mdf, file = fname)
 }else(mdf <- readRDS(fname))
 
@@ -28,18 +29,17 @@ fname <- "data/003_fgsea_results.rds"
 
 if(!file.exists(fname)){
   
-  df <- res |> as.data.frame() |> 
-    filter(!is.na(padj) & !is.na(log2FoldChange) & !is.na(symbol)) |> 
-    mutate(padj = replace(padj, padj == 0, 2.225074e-308)) 
+  df <- res |> 
+    as.data.frame() |> 
+    filter(!is.na(padj), !is.na(log2FoldChange), !is.na(symbol), !symbol == "") |> 
+    mutate(padj = ifelse(padj == 0, .Machine$double.xmin, padj)) 
   
   #signature <- setNames(-log10(df$padj)*sign(df$log2FoldChange), rownames(df))
   sig <- setNames(df$log2FoldChange, df$symbol)
   #Use fgseaMultilevel for better accuracy than fgseaSimple (https://bioconductor.riken.jp/packages/3.9/bioc/vignettes/fgsea/inst/doc/fgseaMultilevel-tutorial.html)
   fgseaRes <- fgseaMultilevel(pathways = mlist,
                               stats = sig,
-                              eps = 0,
-                              nproc = parallel::detectCores()-2,
-  )  
+                              eps = 0)  
   
   
   saveRDS(fgseaRes, fname)
@@ -47,8 +47,9 @@ if(!file.exists(fname)){
 }else{fgseaRes <- readRDS(fname)}
 
 # Plots ----
-collapsedPathways <- collapsePathways(fgseaRes[order(pval)][padj < 0.05], 
-                                      mlist, sig)
+collapsedPathways <- collapsePathways(fgseaRes = fgseaRes[order(pval)][padj < 0.05], 
+                                      pathways = mlist, 
+                                      stats = sig)
 
 mainPathways <- fgseaRes[pathway %in% collapsedPathways$mainPathways][
   order(-NES), pathway]
@@ -69,10 +70,8 @@ ends <- fgseaRes |>
               arrange(-NES)) |> 
   arrange(NES)
 
-png(paste0("plots/003_02_agc1_GSEA_barplot.png"), h = 3000, w = 4000, res = 600)
-
-plt <- ggplot(ends, aes(x = c(1:nrow(ends)), y = NES, fill = as.factor(sign(-NES)))) +
-  geom_bar(stat='identity') +
+ggplot(ends, aes(x = c(1:nrow(ends)), y = NES, fill = as.factor(sign(-NES)))) +
+  geom_bar(stat='identity', color = "black") +
   theme_light() +
   theme(legend.position = "none") +
   labs(title = "Best scoring pathways in siAgc1 OliNeu cells", y = "Combined Score", x="") +
@@ -88,12 +87,10 @@ plt <- ggplot(ends, aes(x = c(1:nrow(ends)), y = NES, fill = as.factor(sign(-NES
             size = 3,
             lineheight = 0.85) +
   geom_text(aes(label = p_star(padj)), 
+            size = 5,
             hjust = ifelse(sign(ends$NES) < 0, 1.3, -0.3),
             vjust = 0.75)
-
-
-print(plt)
-dev.off()
+ggsave("plots/003_02_agc1_GSEA_barplot.png", h = 1200, w = 2000, units = "px")
 
 ## Plot single GSEAs
 pdf(paste0("plots/003_03_agc1_main_pathways_enrichment.pdf"), w = 5, h = 3)
@@ -131,6 +128,7 @@ res_myelin <- res |>
   as_tibble(rownames = "ensembl_id") |> 
   filter(symbol %in% myelin_genes,
          padj < 0.05)
+saveRDS(res_myelin, "data/myelin_related_genes_res.rds")
 
 logfc_bar <- res |> 
   as_tibble() |> 
@@ -154,11 +152,14 @@ ha <- rowAnnotation(log2FC = anno_numeric(logfc_bar$log2FoldChange |>
                     Padj = anno_text(logfc_bar$p_star, show_name = T),
                     annotation_name_rot = 0)
 
-png("plots/003_Heatmap_myelination_tpms.png", h = 2700, w = 3200, res = 350)
+png("plots/003_Heatmap_myelination_tpms.png", h = 2500, w = 3000, res = 350)
 hm <- Heatmap(mtx, 
         cluster_columns = F, 
-        cluster_rows = F,
+        column_labels = str_replace(colnames(mtx), "wt", "control ") |> 
+          str_replace("kd", "siAgc1 "),
+        column_names_centered = T,
         column_names_rot = 0,
+        cluster_rows = F,
         column_title = "Genes involved in myelination",
         col = viridis_pal()(11),
         name = "scaled \nTPMs",

@@ -4,7 +4,6 @@ library(babelgene)
 library(tibble)
 library(dplyr)
 
-setwd("data")
 brainexpmat <- readRDS("data/gtex_Brain_expmat.rds")
 
 descmatchr <- readRDS("data/002_res.rds") |> 
@@ -136,10 +135,10 @@ mraplot(mraobj = FCmra, mrs = 10)
 dev.off()
 
 # Plot most interesting regulators, dlx1 and smarcc2
-png("plots/dlx1_smarcc2_FC.png", height = 3000, width = 6000, res=600)
-mraplot(mraobj = FCmra, mrs = c("DLX1", "SMARCC2"), pthr = 0.05)
+png("plots/PROX1_smarcc2_FC.png", height = 3000, width = 6000, res=600)
+mraplot(mraobj = FCmra, mrs = c("PROX1", "SMARCC2"), pthr = 0.05)
 dev.off()
 
-png("plots/dlx1_smarcc2_Hippo.png", height = 3000, width = 6000, res=600)
-mraplot(mraobj = hippomra, mrs = c("DLX1", "SMARCC2"), pthr = 0.05)
+png("plots/PROX1_smarcc2_Hippo.png", height = 3000, width = 6000, res=600)
+mraplot(mraobj = hippomra, mrs = c("PROX1", "SMARCC2"), pthr = 0.05)
 dev.off()
