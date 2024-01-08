@@ -340,12 +340,14 @@ for(i in targets){
          ),
          x = "Genotype", 
          y = "TPMs") +
+    expand_limits(x = 0, y = 0) +
     scale_x_discrete(labels = function(x) str_replace(x, "_", "\n")) +
     scale_color_manual(values = sample_colors,
                        labels = sample_labels,
                        name = "Sample") +
     theme(plot.title = element_text(hjust = 0.5),
           plot.subtitle = element_text(hjust = 0.5),
+          legend.key = element_rect(fill = "white", colour = "white"),
           panel.background = element_rect(fill = 
                                             ifelse(
                                               goplot |> 

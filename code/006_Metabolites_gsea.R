@@ -14,16 +14,16 @@ metab <- metab_orig |>
   mutate(Metabolite = ifelse(Metabolite == "N-Acetylaspartate", "NAA", Metabolite)) |> 
   group_by(Metabolite) |> 
   mutate(group = case_when(
-    mean(Concentration) < 20 ~ "0-20 ng",
-    mean(Concentration) < 70 ~ "20-70 ng",
-    mean(Concentration) < 150 ~ "70-150 ng",
-    mean(Concentration) > 150 ~ "150+ ng"
+    mean(Concentration) < 20 ~ "0-20 ng/mL",
+    mean(Concentration) < 70 ~ "20-70 ng/mL",
+    mean(Concentration) < 150 ~ "70-150 ng/mL",
+    mean(Concentration) > 150 ~ "150+ ng/mL"
   ) |> 
-    factor(levels = c("0-20 ng", "20-70 ng", "70-150 ng", "150+ ng"))) |> 
+    factor(levels = c("0-20 ng/mL", "20-70 ng/mL", "70-150 ng/mL", "150+ ng/mL"))) |> 
   ungroup() |> 
   separate_wider_delim(Fraction, names = c("Fraction", "Genotype"), delim = "_") |> 
-  mutate(Genotype = ifelse(Genotype == "wt", "control", "siAgc1"))
-
+  mutate(Genotype = ifelse(Genotype == "wt", "control", "siAgc1"),
+         Concentration = ifelse(Fraction == "Cells", Concentration/0.4, Concentration)) # We do this so that cell pellet results can be reported as concentration (ng/million cells). Pellets were obtained from ~400,000 cells.
 metab |> 
   ggplot(aes(Metabolite, Concentration, fill = Genotype, pattern = Fraction)) +
   geom_bar_pattern(stat = "identity", 
@@ -37,13 +37,44 @@ metab |>
   geom_errorbar(aes(ymin = Concentration-Err, ymax = Concentration+Err),
                 position = position_dodge(.9),
                 width = .5) +
-  facet_wrap(~group, scales = "free") +
   scale_x_discrete(guide = guide_axis(n.dodge = 2)) +
+  scale_y_continuous("Cell pellet concentration (ng/Million cells)", 
+    sec.axis = sec_axis(~ . *0.4, name = "Colture media concentration (ng/mL)")
+  ) +
+  facet_wrap(~group, scales = "free") +
   scale_pattern_manual(values = c(Cells = "none", Medium = "stripe")) +
-  labs(title = "Metabolites Levels (ng)")+
+  labs(title = "Metabolites Concentration in pellets and colture media")+
   guides(fill = guide_legend(override.aes = list(pattern = "none")),
          pattern = guide_legend(override.aes = list(fill = "white")))
 ggsave("plots/010_Metabolites_concentration.png", h = 1500, w = 3000, units = "px")
+
+# Separate plots for cell pellets and colture media
+metab %>% 
+  filter(Fraction == "Cells") %>% 
+  ggplot(aes(Metabolite, Concentration, fill = Genotype, pattern = Fraction)) +
+  geom_bar(stat = "identity", position = position_dodge(), color = "black") +
+  geom_errorbar(aes(ymin = Concentration-Err, ymax = Concentration+Err),
+                position = position_dodge(.9),
+                width = .5) +
+  scale_x_discrete(guide = guide_axis(n.dodge = 2)) +
+  scale_y_continuous("Cell pellet metabolite concentration (ng/Million cells)") +
+  facet_wrap(~group, scales = "free") +
+  labs(title = "Metabolites concentration in pellets")
+ggsave("plots/010_Metabolites_concentration_pellet_only.png", h = 1600, w = 2500, units = "px")
+
+metab %>% 
+  filter(Fraction == "Medium") %>% 
+  ggplot(aes(Metabolite, Concentration, fill = Genotype, pattern = Fraction)) +
+  geom_bar(stat = "identity", position = position_dodge(), color = "black") +
+  geom_errorbar(aes(ymin = Concentration-Err, ymax = Concentration+Err),
+                position = position_dodge(.9),
+                width = .5) +
+  scale_x_discrete(guide = guide_axis(n.dodge = 2)) +
+  scale_y_continuous("Colture media metabolite concentration (ng/mL)") +
+  facet_wrap(~group, scales = "free") +
+  labs(title = "Metabolites concentration in colture media")
+ggsave("plots/010_Metabolites_concentration_medium_only.png", h = 1600, w = 2500, units = "px")
+
 
 # Check enrichment in Lasorsa gene sets
 res <- readRDS("data/002_res.rds") |> 
